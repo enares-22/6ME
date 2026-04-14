@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>TE AMO FELICES 6 MESES</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #030008;
+      touch-action: none;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      position: relative;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      touch-action: none;
+    }
+
+    .instrucciones {
+      position: absolute;
+      left: 0;
+      bottom: 18px;
+      width: 100%;
+      text-align: center;
+      color: rgba(255, 255, 255, 0.45);
+      font-size: 12px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      pointer-events: none;
+      animation: parpadeo 2s infinite;
+      z-index: 2;
+      padding: 0 12px;
+    }
+
+    @keyframes parpadeo {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 0.85; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <div class="instrucciones">Deslizá el dedo o el mouse</div>
+
+  <script>
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    const sequence = [
+      { type: "heart" },
+      { type: "text", text: "I LOVE YOU" },
+      { type: "text", text: "SOS LA MEJOR MUJER DEL MUNDO" },
+      { type: "text", text: "ME HACÉS FELIZ TODOS LOS DÍAS" },
+      { type: "text", text: "GRACIAS POR ESTAR CONMIGO MI AMOR" },
+      { type: "text", text: "TE ELEGIRÍA UNA Y MIL VECES" },
+      { type: "text", text: "SOS LO MEJOR QUE ME PASO" },
+      { type: "text", text: "MI CORAZÓN TE VA A AMAR SIEMPRE" },
+      { type: "text", text: "FELICES 6 MESES ❤️" },
+      { type: "text", text: "Y QUE SEAN MUCHOS MÁS..." }
+    ];
+
+    const colors = ["#ff3366", "#ff6699", "#ff99cc", "#ff0066", "#cc00ff", "#ffcc00"];
+
+    let cssWidth = 0;
+    let cssHeight = 0;
+    let dpr = 1;
+
+    let particles = [];
+    let heartPoints = [];
+    let textCache = new Map();
+
+    let currentIndex = 0;
+    let lastStateChange = performance.now();
+    const stateDuration = 5200;
+
+    const pointer = {
+      x: -1000,
+      y: -1000,
+      radius: 90
+    };
+
+    class Particle {
+      constructor(textX, textY, heartX, heartY) {
+        this.x = Math.random() * cssWidth;
+        this.y = Math.random() * cssHeight;
+
+        this.textX = textX;
+        this.textY = textY;
+        this.heartX = heartX;
+        this.heartY = heartY;
+
+        this.targetX = textX;
+        this.targetY = textY;
+
+        this.vx = 0;
+        this.vy = 0;
+
+        this.size = Math.random() * 1.8 + 0.6;
+        this.color = colors[Math.floor(Math.random() * colors.length)];
+        this.ease = 0.018 + Math.random() * 0.022;
+        this.friction = 0.84 + Math.random() * 0.08;
+        this.phase = Math.random() * Math.PI * 2;
+      }
+
+      setTarget(type) {
+        if (type === "heart") {
+          this.targetX = this.heartX;
+          this.targetY = this.heartY;
+        } else {
+          this.targetX = this.textX;
+          this.targetY = this.textY;
+        }
+      }
+
+      update(isHeart) {
+        let tx = this.targetX;
+        let ty = this.targetY;
+
+        if (isHeart) {
+          const t = performance.now() / 380;
+          const beat = Math.abs(Math.sin(t)) * Math.abs(Math.sin(t * 0.5));
+          const scale = 1 + beat * 0.08;
+
+          const cx = cssWidth / 2;
+          const cy = cssHeight / 2;
+          tx = cx + (this.heartX - cx) * scale;
+          ty = cy + (this.heartY - cy) * scale;
+        }
+
+        tx += Math.sin(performance.now() * 0.002 + this.phase) * 1.2;
+        ty += Math.cos(performance.now() * 0.002 + this.phase) * 1.2;
+
+        const dx = tx - this.x;
+        const dy = ty - this.y;
+
+        const dist = Math.hypot(this.x - pointer.x, this.y - pointer.y);
+        if (dist < pointer.radius) {
+          const force = (pointer.radius - dist) / pointer.radius;
+          const angle = Math.atan2(this.y - pointer.y, this.x - pointer.x);
+          this.vx += Math.cos(angle) * force * 2.8;
+          this.vy += Math.sin(angle) * force * 2.8;
+        }
+
+        this.vx += dx * this.ease;
+        this.vy += dy * this.ease;
+
+        this.vx *= this.friction;
+        this.vy *= this.friction;
+
+        this.x += this.vx;
+        this.y += this.vy;
+      }
+
+      draw() {
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function resizeCanvas() {
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      cssWidth = window.innerWidth;
+      cssHeight = window.innerHeight;
+
+      canvas.width = Math.round(cssWidth * dpr);
+      canvas.height = Math.round(cssHeight * dpr);
+
+      canvas.style.width = cssWidth + "px";
+      canvas.style.height = cssHeight + "px";
+
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      pointer.radius = cssWidth < 768 ? 120 : 90;
+    }
+
+    function wrapText(ctx2d, text, maxWidth) {
+      const words = text.trim().split(/\s+/);
+      if (words.length === 1) return [text.trim()];
+
+      const lines = [];
+      let line = "";
+
+      for (const word of words) {
+        const testLine = line ? `${line} ${word}` : word;
+        if (ctx2d.measureText(testLine).width <= maxWidth) {
+          line = testLine;
+        } else {
+          if (line) lines.push(line);
+          line = word;
+        }
+      }
+
+      if (line) lines.push(line);
+      return lines;
+    }
+
+    function extractPoints(offCtx, offCanvas, stepCss = 5) {
+      const data = offCtx.getImageData(0, 0, offCanvas.width, offCanvas.height).data;
+      const points = [];
+      const step = Math.max(4, Math.round(stepCss * dpr));
+      const w = offCanvas.width;
+      const h = offCanvas.height;
+
+      for (let y = 0; y < h; y += step) {
+        for (let x = 0; x < w; x += step) {
+          const alpha = data[(y * w + x) * 4 + 3];
+          if (alpha > 20) {
+            points.push({ x: x / dpr, y: y / dpr });
+          }
+        }
+      }
+      return points;
+    }
+
+    function getTextPoints(text) {
+      const offCanvas = document.createElement("canvas");
+      offCanvas.width = Math.round(cssWidth * dpr);
+      offCanvas.height = Math.round(cssHeight * dpr);
+
+      const offCtx = offCanvas.getContext("2d", { willReadFrequently: true });
+      offCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      offCtx.fillStyle = "#ffffff";
+      offCtx.textAlign = "center";
+      offCtx.textBaseline = "middle";
+
+      const isMobile = cssWidth < 768;
+      const maxWidth = cssWidth * (isMobile ? 0.88 : 0.72);
+      const maxHeight = cssHeight * (isMobile ? 0.30 : 0.24);
+
+      const maxFont = isMobile ? Math.min(cssWidth / 6.2, 64) : Math.min(cssWidth / 7.2, 170);
+      const minFont = isMobile ? 14 : 22;
+
+      let chosen = null;
+
+      for (let fontSize = maxFont; fontSize >= minFont; fontSize -= 1) {
+        offCtx.font = `900 ${fontSize}px "Arial Black", Arial, sans-serif`;
+
+        const lines = wrapText(offCtx, text, maxWidth);
+        const lineHeight = fontSize * 1.15;
+        const totalHeight = lines.length * lineHeight;
+
+        const widest = Math.max(...lines.map(line => offCtx.measureText(line).width));
+
+        if (widest <= maxWidth && totalHeight <= maxHeight) {
+          chosen = { fontSize, lines, lineHeight };
+          break;
+        }
+      }
+
+      if (!chosen) {
+        const fontSize = minFont;
+        offCtx.font = `900 ${fontSize}px "Arial Black", Arial, sans-serif`;
+        const lines = wrapText(offCtx, text, maxWidth);
+        chosen = { fontSize, lines, lineHeight: fontSize * 1.15 };
+      }
+
+      const totalHeight = chosen.lines.length * chosen.lineHeight;
+      const startY = cssHeight / 2 - totalHeight / 2 + chosen.lineHeight / 2;
+
+      offCtx.font = `900 ${chosen.fontSize}px "Arial Black", Arial, sans-serif`;
+      chosen.lines.forEach((line, i) => {
+        offCtx.fillText(line, cssWidth / 2, startY + i * chosen.lineHeight);
+      });
+
+      return extractPoints(offCtx, offCanvas, isMobile ? 6 : 5);
+    }
+
+    function getHeartPoints() {
+      const offCanvas = document.createElement("canvas");
+      offCanvas.width = Math.round(cssWidth * dpr);
+      offCanvas.height = Math.round(cssHeight * dpr);
+
+      const offCtx = offCanvas.getContext("2d", { willReadFrequently: true });
+      offCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      const divisor = cssWidth < 768 ? 40 : 36;
+      const scale = Math.min(cssWidth, cssHeight) / divisor;
+
+      offCtx.translate(cssWidth / 2, cssHeight / 2);
+      offCtx.beginPath();
+
+      let first = true;
+      for (let t = 0; t <= Math.PI * 2; t += 0.04) {
+        const x = 16 * Math.pow(Math.sin(t), 3);
+        const y = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+        const px = x * scale;
+        const py = y * scale;
+
+        if (first) {
+          offCtx.moveTo(px, py);
+          first = false;
+        } else {
+          offCtx.lineTo(px, py);
+        }
+      }
+
+      offCtx.closePath();
+      offCtx.fillStyle = "#ffffff";
+      offCtx.fill();
+
+      return extractPoints(offCtx, offCanvas, cssWidth < 768 ? 6 : 5);
+    }
+
+    function rebuildCaches() {
+      textCache = new Map();
+
+      for (const item of sequence) {
+        if (item.type === "text") {
+          textCache.set(item.text, getTextPoints(item.text));
+        }
+      }
+
+      heartPoints = getHeartPoints();
+    }
+
+    function currentTextItem() {
+      return sequence[currentIndex].type === "text"
+        ? sequence[currentIndex].text
+        : sequence.find(item => item.type === "text").text;
+    }
+
+    function assignTextTargets(text) {
+      const points = textCache.get(text) || getTextPoints(text);
+      if (!points.length) return;
+
+      particles.forEach((p, i) => {
+        const pt = points[i % points.length];
+        p.textX = pt.x;
+        p.textY = pt.y;
+      });
+    }
+
+    function buildParticles(initialText) {
+      const textPoints = textCache.get(initialText) || getTextPoints(initialText);
+      const maxLen = Math.max(
+        heartPoints.length,
+        ...Array.from(textCache.values(), arr => arr.length)
+      );
+
+      particles = [];
+      for (let i = 0; i < maxLen; i++) {
+        const tp = textPoints[i % textPoints.length];
+        const hp = heartPoints[i % heartPoints.length];
+        particles.push(new Particle(tp.x, tp.y, hp.x, hp.y));
+      }
+    }
+
+    function init() {
+      resizeCanvas();
+      rebuildCaches();
+
+      const firstText = currentTextItem();
+      buildParticles(firstText);
+      assignTextTargets(firstText);
+
+      if (sequence[currentIndex].type === "heart") {
+        // no hace falta tocar nada acá
+      }
+
+      lastStateChange = performance.now();
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = "rgba(3, 0, 8, 0.22)";
+      ctx.fillRect(0, 0, cssWidth, cssHeight);
+
+      ctx.globalCompositeOperation = "lighter";
+
+      const now = performance.now();
+
+      if (now - lastStateChange > stateDuration) {
+        currentIndex = (currentIndex + 1) % sequence.length;
+        lastStateChange = now;
+
+        const item = sequence[currentIndex];
+
+        if (item.type === "text") {
+          assignTextTargets(item.text);
+        }
+
+        particles.forEach(p => {
+          p.vx = (Math.random() - 0.5) * 12;
+          p.vy = (Math.random() - 0.5) * 12;
+        });
+      }
+
+      const item = sequence[currentIndex];
+
+      particles.forEach(p => {
+        p.setTarget(item.type);
+        p.update(item.type === "heart");
+        p.draw();
+      });
+    }
+
+    function setPointer(x, y) {
+      pointer.x = x;
+      pointer.y = y;
+    }
+
+    window.addEventListener("pointermove", (e) => {
+      setPointer(e.clientX, e.clientY);
+    });
+
+    window.addEventListener("pointerdown", (e) => {
+      setPointer(e.clientX, e.clientY);
+    });
+
+    window.addEventListener("pointerup", () => {
+      pointer.x = -1000;
+      pointer.y = -1000;
+    });
+
+    window.addEventListener("pointerleave", () => {
+      pointer.x = -1000;
+      pointer.y = -1000;
+    });
+
+    let resizeTimer = null;
+    window.addEventListener("resize", () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        const keepIndex = currentIndex;
+        init();
+        currentIndex = keepIndex;
+        const item = sequence[currentIndex];
+        if (item.type === "text") assignTextTargets(item.text);
+      }, 150);
+    });
+
+    init();
+    animate();5
+  </script>
+</body>
+</html>
